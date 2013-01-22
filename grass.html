@@ -8,6 +8,7 @@
             h1 {
                 text-align: center;
                 font-style: italic;
+                letter-spacing: 0.4em;
             }
             canvas {
                 display: block;
@@ -25,22 +26,53 @@
                 
                 var ctx = canvas.getContext('2d');
                 
-                ctx.fillStyle = "rgb(110, 130, 250)";
+                ctx.fillStyle = "rgb(110, 130, 250)"; // sky
                 ctx.fillRect (0, 0, 600, 300);
-                ctx.fillStyle = "rgb(150, 60, 30)";
+                ctx.fillStyle = "rgb(120, 70, 30)"; // ground
                 ctx.fillRect (0, 300, 600, 400);
+
+                var life = function () {
+                    var plants = [];
+                    var createPlant = function () {
+                        plants.push({
+                            xPos: Math.floor(Math.random() * 600),
+                            height: Math.floor(Math.random() * 100),
+                            colorComp: Math.floor(Math.random() * 50),
+                        });
+                    };
+
+                    return {
+                        animate: function () {
+                            createPlant();
+                        },
+                        getPlants: function () {
+                            return plants;
+                        }
+                    };
+                } ();
                 
-                ctx.strokeStyle = "rgb(0, 80, 0)";
-                ctx.beginPath();
-                ctx.moveTo(300,300);
-                ctx.lineTo(300,250);
-                ctx.stroke();
+
+                setInterval(function () {
+                    life.animate();
+                    var plants = life.getPlants();
+                    var last = plants.length - 1;
+                    ctx.beginPath();
+                    ctx.moveTo(plants[last].xPos, 300);
+                    ctx.lineTo(plants[last].xPos, 300 - plants[last].height);
+                    ctx.strokeStyle = x = 'rgb(' 
+                        + (0 + plants[last].colorComp) + ', '
+                        + (80 + plants[last].colorComp) + ', '
+                        + (0 + plants[last].colorComp)
+                        + ')';
+                    ctx.stroke();
+                }, 20);
+
         
             }, false);
         </script>
     </head>
     <body>
-        <h1>G r a s s</h1>
+        <h1>Grass</h1>
         <canvas id="grass" width="600" height="400"></canvas>
     </body>
 </html>
