@@ -1,0 +1,45 @@
+<html>
+    <head>
+        <style>
+            body {
+                background-color: #56F;
+            }
+            h1 {
+                text-align: center;
+                font-style: italic;
+            }
+            canvas {
+                display: block;
+                margin: auto;
+                border: solid #000 3px;
+            }
+        </style>
+        <script>
+            window.addEventListener('load', function () {
+                var canvas = document.getElementById('grass');
+                
+                if (!canvas.getContext){
+                    throw new Error('Cannot init canvas');
+                }
+                
+                var ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = "rgb(110, 130, 250)";
+                ctx.fillRect (0, 0, 600, 300);
+                ctx.fillStyle = "rgb(150, 60, 30)";
+                ctx.fillRect (0, 300, 600, 400);
+                
+                ctx.strokeStyle = "rgb(0, 80, 0)";
+                ctx.beginPath();
+                ctx.moveTo(300,300);
+                ctx.lineTo(300,250);
+                ctx.stroke();
+        
+            }, false);
+        </script>
+    </head>
+    <body>
+        <h1>G r a s s</h1>
+        <canvas id="grass" width="600" height="400"></canvas>
+    </body>
+</html>
