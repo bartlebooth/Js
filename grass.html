@@ -16,20 +16,156 @@
                 border: solid #000 3px;
             }
         </style>
-        <script>
-            window.addEventListener('load', function () {
-                var canvas = document.getElementById('grass');
-                
-                if (!canvas.getContext){
-                    throw new Error('Cannot init canvas');
+        <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+        <script id="shader-vs" type="x-shader/x-vertex">
+            attribute vec2 aPosition;
+
+            uniform vec2 uResolution;
+
+            void main(void) {
+               // convert the rectangle from pixels to 0.0 to 1.0
+               vec2 zeroToOne = aPosition / uResolution;
+               // convert from 0->1 to 0->2
+               vec2 zeroToTwo = zeroToOne * 2.0;
+               // convert from 0->2 to -1->+1 (clipspace)
+               vec2 clipSpace = zeroToTwo - 1.0;
+               gl_Position = vec4(clipSpace, 0, 1);
+            }
+        </script>
+        <script id="shader-fs" type="x-shader/x-fragment">
+            precision mediump float;
+
+            uniform vec4 uColor;
+
+            void main(void) {
+                gl_FragColor = uColor;
+            }
+        </script>
+        <script type="text/javascript">
+            function glass(canvasId, programDescs) {
+                var canvas = document.getElementById(canvasId);
+                var shaders = {};
+                var programs = {};
+                var context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+                var initShader = function (shaderId) {
+                    if (shaders[shaderId]) {
+                        throw 'Shader "' + shaderId + '" is already initialized';
+                    }
+
+                    var shaderElement = document.getElementById(shaderId);
+
+                    if (!shaderElement) {
+                        throw 'Could not find shader element "' + shaderId + '"';
+                    }
+
+                    var shaderSource = '';
+                    var currentNode = shaderElement.firstChild;
+
+                    while (currentNode) {
+                        if (currentNode.nodeType == 3) {
+                            shaderSource += currentNode.textContent;
+                        }
+
+                        currentNode = currentNode.nextSibling;
+                    }
+
+                    var shader;
+
+                    if (shaderElement.type === 'x-shader/x-fragment') {
+                        shader = context.createShader(context.FRAGMENT_SHADER);
+                    } else if (shaderElement.type === 'x-shader/x-vertex') {
+                        shader = context.createShader(context.VERTEX_SHADER);
+                    } else {
+                        throw 'Unknown shader type "' + shaderElement.type + '"';
+                    }
+
+                    context.shaderSource(shader, shaderSource);
+                    context.compileShader(shader);
+
+                    if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
+                        throw 'Shader "' + shaderId + '" compilation error : ' + context.getShaderInfoLog(shader);
+                    }
+
+                    shaders[shaderId] = shader;
+                };
+
+                var initProgram = function (programId, shaderIds) {
+                    if (programs[programId]) {
+                        throw 'Program "' + programId + '" is already initialized';
+                    }
+
+                    var program = context.createProgram();
+
+                    for (var i = 0; i < shaderIds.length; ++i) {
+                        shaders[shaderIds[i]] || initShader(shaderIds[i]);
+                        context.attachShader(program, shaders[shaderIds[i]]);
+                    }
+
+                    context.linkProgram(program);
+
+                    if (!context.getProgramParameter(program, context.LINK_STATUS)) {
+                        throw 'Could not initialize program "' + programId + '"';
+                    }
+
+                    programs[programId] = program;
+                };
+
+                if (!context) {
+                    throw 'Could not initialize WebGL';
                 }
-                
-                var ctx = canvas.getContext('2d');
-                
-                ctx.fillStyle = "rgb(110, 130, 250)"; // sky
-                ctx.fillRect (0, 0, 600, 300);
-                ctx.fillStyle = "rgb(120, 70, 30)"; // ground
-                ctx.fillRect (0, 300, 600, 400);
+
+                context.viewportWidth = canvas.width;
+                context.viewportHeight = canvas.height;
+
+                for (var i = 0; i < programDescs.length; ++i) {
+                    initProgram(programDescs[i].id, programDescs[i].shaders);
+                }
+
+                return {
+                    'context': context,
+                    'programs': programs
+                };
+            }
+        </script>
+        <script type="text/javascript">
+            window.addEventListener('load', function () {
+                var gls = glass('grass', [{ id: 'Test', shaders: ['shader-fs', 'shader-vs'] }]);
+                var ctx = gls.context;
+                var pgm = gls.programs['Test'];
+
+                var buffer = ctx.createBuffer();
+                var aPosition = ctx.getUniformLocation(pgm, 'aPosition');
+                var uResolution = ctx.getUniformLocation(pgm, 'uResolution');
+                var uColor = ctx.getUniformLocation(pgm, 'uColor');
+
+                ctx.useProgram(pgm);
+                ctx.bindBuffer(ctx.ARRAY_BUFFER, buffer);
+                ctx.enableVertexAttribArray(aPosition);
+                ctx.vertexAttribPointer(aPosition, 2, ctx.FLOAT, false, 0, 0);
+                ctx.uniform2f(uResolution, 600, 400);
+                ctx.clearColor(0.0, 0.0, 0.0, 1.0);
+                ctx.clear(ctx.COLOR_BUFFER_BIT);
+
+                // ground
+                ctx.uniform4f(uColor, 0.40, 0.28, 0.06, 1.0);
+                ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+                    0, 0,
+                    0, 100,
+                    600, 0,
+                    600, 100,
+                ]), ctx.STATIC_DRAW);
+                ctx.drawArrays(ctx.TRIANGLE_STRIP, 0, 4);
+
+                // sky
+                ctx.uniform4f(uColor, 0.4, 0.5, 1.0, 1.0);
+                ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+                    0, 100,
+                    0, 400,
+                    600, 100,
+                    600, 400,
+                ]), ctx.STATIC_DRAW);
+                ctx.drawArrays(ctx.TRIANGLE_STRIP, 0, 4);
 
                 var life = function () {
                     var plants = [];
@@ -37,7 +173,7 @@
                         plants.push({
                             xPos: Math.floor(Math.random() * 600),
                             height: Math.floor(Math.random() * 100),
-                            colorComp: Math.floor(Math.random() * 50),
+                            colorComp: Math.random() / 5,
                         });
                     };
 
@@ -50,24 +186,38 @@
                         }
                     };
                 } ();
-                
 
+
+                life.animate();
+                var plants = life.getPlants();
+                var last = plants.length - 1;
+                ctx.uniform4f(
+                    uColor,
+                    0 + plants[last].colorComp,
+                    0.3 + plants[last].colorComp,
+                    0 + plants[last].colorComp,
+                    1.0
+                );
+                ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+                    plants[last].xPos, 100,
+                    plants[last].xPos, 100 + plants[last].height
+                ]), ctx.STATIC_DRAW);
+                ctx.drawArrays(ctx.LINES, 0, 2);
+
+                /*
                 setInterval(function () {
                     life.animate();
                     var plants = life.getPlants();
                     var last = plants.length - 1;
-                    ctx.beginPath();
-                    ctx.moveTo(plants[last].xPos, 300);
-                    ctx.lineTo(plants[last].xPos, 300 - plants[last].height);
-                    ctx.strokeStyle = x = 'rgb(' 
-                        + (0 + plants[last].colorComp) + ', '
-                        + (80 + plants[last].colorComp) + ', '
-                        + (0 + plants[last].colorComp)
-                        + ')';
-                    ctx.stroke();
-                }, 20);
 
-        
+                    //ctx.uniform4f(uColor, 0.4, 0.5, 1.0, 1.0);
+                    ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+                        plants[last].xPos, 100,
+                        plants[last].xPos, 100 + plants[last].height
+                    ]), ctx.STATIC_DRAW);
+                    ctx.drawArrays(ctx.LINES, 0, 2);
+                }, 500);*/
+
             }, false);
         </script>
     </head>
